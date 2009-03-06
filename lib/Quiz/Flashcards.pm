@@ -20,7 +20,7 @@ Quiz::Flashcards - Cross-platform modular flashcard GUI application
 
 =cut
 
-our ($VERSION) = 0.01;   # define version
+our $VERSION = '0.02';   # define version
 
 =head1 DESCRIPTION
 
