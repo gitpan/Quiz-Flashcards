@@ -48,7 +48,7 @@ TODO: {
     "placeholder date/time"       => qr(Date/time)
   );
 
-  module_boilerplate_ok('lib\Quiz\Flashcards.pm');
+  module_boilerplate_ok('lib/Quiz/Flashcards.pm');
 
 
 }

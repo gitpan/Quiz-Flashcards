@@ -5,12 +5,15 @@ author:
 build_requires:
   DBI: 0
   ExtUtils::MakeMaker: 6.11
+  File::HomeDir: 0
   File::ShareDir: 0
+  File::Spec::Functions: 0
   Module::Find: 0
   Module::Install::Share: 0
   Test::More: 0
   Time::HiRes: 0
   Wx: 0
+  Wx::Perl::ListCtrl: 0
 distribution_type: module
 generated_by: 'Module::Install version 0.79'
 license: perl
@@ -25,4 +28,4 @@ no_index:
     - t
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.02
+version: 0.03
