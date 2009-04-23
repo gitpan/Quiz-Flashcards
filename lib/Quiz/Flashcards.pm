@@ -2,11 +2,13 @@ package Quiz::Flashcards;
 use warnings;
 use strict;
 
+use 5.010;
+
 use base 'Exporter';
 
 our @EXPORT = (qw( run_flashcard_app ));
 
-use Carp;
+use Carp qw( confess );
 use utf8;
 use English qw(-no_match_vars);
 
@@ -20,7 +22,7 @@ Quiz::Flashcards - Cross-platform modular flashcard GUI application
 
 =cut
 
-our $VERSION = '0.03';    # define version
+our $VERSION = '0.04';    # define version
 
 =head1 DESCRIPTION
 
@@ -134,6 +136,7 @@ use Wx qw(:everything);
 use Wx::Event qw(:everything);
 use File::ShareDir ':ALL';
 use DBI;
+use List::Util 'shuffle';
 
 my %el;
 
@@ -147,7 +150,7 @@ sub OnInit {
     $self->load_timers;
     $self->load_waiting_animator;
     $self->register_events;
-
+    
     return 1;
 }
 
@@ -163,7 +166,7 @@ sub load_set {
     $module =~ s/ -> /::/;
 
     eval " require Quiz::Flashcards::Sets::$module; import Quiz::Flashcards::Sets::$module; ";
-    die $@ if $@;
+    confess $@ if $@;
 
     @{ $self->{set} } = get_set();
     $self->{set_name} = $module;
@@ -177,14 +180,22 @@ sub load_set {
 
     $el{start_next_button}->Enable;
     $el{set_status_toggle}->Enable;
+    
+    $self->hide_sizer_contents( $self->{multi_answer_sizer} );
+    $el{answer}->Hide;
+    $el{correct_answer}->Hide;
+    $el{answer_time}->SetLabel( '' );
 
+    $el{question}->SetBackgroundColour(wxNullColour);
+    $el{question}->SetLabel( '' );
     $el{question}->Show;
-    $el{answer}->Show;
     $el{start_next_button}->Show;
     $el{answer_time}->Show;
 
     $el{start_next_button}->SetFocus;
 
+    $self->{set_complexity} = 1;
+    $self->{set_part_certainty} = 0;
     $self->update_set_status;
 
     $self->re_layout;
@@ -230,6 +241,8 @@ sub check_answer {
         $certainty_modifier = 100;
         $self->{curr_question}->{time_to_answer} += .2 * ( $answer_time - $self->{curr_question}->{time_to_answer} );
         $self->{curr_question}->{time_to_answer} = $self->{curr_question}->{time_to_answer};
+        $el{correct_answer}->Show;
+        #$el{question_description}->Show;
         $self->enable_start_next_button;
         $el{question}->SetBackgroundColour(wxGREEN);
     }
@@ -237,6 +250,7 @@ sub check_answer {
         $el{question}->SetBackgroundColour(wxRED);
         $certainty_modifier = 0;
         $el{correct_answer}->Show;
+        #$el{question_description}->Show;
         $el{wrong_timer}->Start(1_000);
 
         for my $item ( @{ $self->{set} } ) {
@@ -268,6 +282,53 @@ sub check_answer {
     $self->re_layout;
 }
 
+sub evt_multi_answer_button {
+    my ( $self, $event ) = @_;
+    
+    my $answer = $event->GetEventObject->GetLabel;
+    
+    $el{answer}->SetValue( $answer );
+    
+    $self->disable_sizer_contents( $self->{multi_answer_sizer} );
+    
+    $self->check_answer;
+}
+
+sub evt_process_keyboard {
+    my ( $self, $event ) = @_;
+    
+    my $choice = $event->GetKeyCode();
+    
+    given ( $choice ) {
+        when ( $_ == WXK_NUMPAD7 ) { $choice = 0  }
+        when ( $_ == WXK_NUMPAD8 ) { $choice = 1  }
+        when ( $_ == WXK_NUMPAD9 ) { $choice = 2  }
+        when ( $_ == WXK_NUMPAD4 ) { $choice = 3  }
+        when ( $_ == WXK_NUMPAD5 ) { $choice = 4  }
+        when ( $_ == WXK_NUMPAD6 ) { $choice = 5  }
+        when ( $_ == WXK_NUMPAD1 ) { $choice = 6  }
+        when ( $_ == WXK_NUMPAD2 ) { $choice = 7  }
+        when ( $_ == WXK_NUMPAD3 ) { $choice = 8  }
+        when ( $_ == WXK_NUMPAD0 ) { $choice = 10 }
+    }
+    
+    if ( defined $choice ) {
+        EVT_KEY_DOWN( $self,  undef );
+        
+        my @children = $self->{multi_answer_sizer}->GetChildren;
+        $choice = $children[$choice]->GetWindow->GetLabel;
+    
+        $el{answer}->SetValue( $choice );
+        
+        $self->disable_sizer_contents( $self->{multi_answer_sizer} );
+        
+        $self->check_answer;
+    }
+}
+
+# Event Helper Sub-Routines
+################################################################################
+
 sub enable_start_next_button {
     my ($self) = @_;
 
@@ -275,9 +336,6 @@ sub enable_start_next_button {
     $el{start_next_button}->Enable;
     $el{start_next_button}->SetFocus;
 }
-
-# Event Helper Sub-Routines
-################################################################################
 
 sub setup_set_table {
     my ($self) = @_;
@@ -332,45 +390,85 @@ sub update_set_status {
     my $set_size = @{ $self->{set} };
 
     for my $item ( @{ $self->{set} } ) {
-        $el{set_status}->InsertStringItem( $i++,
-            "$item->{question}: $item->{certainty} %, " . sprintf( "%.1f", $item->{time_to_answer} ) . " s" );
+        $el{set_status}->InsertStringItem(
+            $i++,
+            "$item->{question}: $item->{certainty} %, " . sprintf( "%.1f", $item->{time_to_answer} ) . " s"
+        );
         $sum{certainty}      += $item->{certainty};
         $sum{time_to_answer} += $item->{time_to_answer};
     }
     my $title = $self->{set_name};
     $title =~ s/::/ -> /;
-    $el{set_status_summary}->SetLabel( "$title\nCertainty = "
-          . sprintf( "%.1f", $sum{certainty} / $set_size )
+    
+    $self->calc_set_complexity;
+    
+    my $set_status_summary = 
+            "$title\nCertainty = "
+          . sprintf( "%.2f", $sum{certainty} / $set_size )
           . " Answer Time = "
-          . sprintf( "%.1f", $sum{time_to_answer} / $set_size ) );
+          . sprintf( "%.1f", $sum{time_to_answer} / $set_size )
+          . " Complexity = "
+          . sprintf( "%d/%d", $self->{set_complexity}, $self->{max_complexity} )
+          . " Part Certainty = "
+          . sprintf( "%.2f", $self->{set_part_certainty} );
+    
+    $el{set_status_summary}->SetLabel( $set_status_summary );
+}
+
+sub calc_set_complexity {
+    my ( $self ) = @_;
+    
+    if( !$self->{max_complexity} ) {
+        $self->{max_complexity} = 1;
+        
+        for my $item ( @{ $self->{set} } ) {
+            $self->{max_complexity} = $item->{complexity} if $self->{max_complexity} < $item->{complexity};
+        }
+    }
+    
+    # calculate the certainty for each complexity group, starting with the largest
+    for my $c ( 1 .. $self->{max_complexity} ) {
+        my ($sum, $count, $done) = (0,0,0);
+        for my $item ( @{ $self->{set} } ) {
+            next if $item->{complexity} != $c;
+            $sum += $item->{certainty};
+            $count++;
+        }
+        
+        my $this_certainty = $sum/$count;
+        $done = 1 if (
+            ( $self->{set_part_certainty} > 50 and $this_certainty <= 50 )
+            or ( $this_certainty <= 50 and $c == 1 )
+        );
+        
+        $self->{set_complexity} = $c;
+        $self->{set_part_certainty} = $sum/$count;
+        
+        last if $done;
+    }
+    
 }
 
 sub select_current_question {
     my ($self) = @_;
-    my ( @pre_choices, @choices, $min_certainty, $max_tta );
-    $min_certainty = 100;
-    $max_tta       = 0;
-
-    # find items with low certainty that we haven't seen recently
+    my ( @choices, $margin );
+    
+    # remove items that have a too high complexity and make sure the last one isn't repeated immediately
     for my $item ( @{ $self->{set} } ) {
-        next if $item->{certainty} > $min_certainty;
-        next if $item->{last_seen} > time - ( @{ $self->{set} } / 3 );
-
-        @pre_choices = () if $item->{certainty} < $min_certainty;
-        $min_certainty = $item->{certainty};
-
-        push @pre_choices, $item;
-    }
-
-    # find items with a high response time
-    for my $item (@pre_choices) {
-        next if $item->{time_to_answer} < $max_tta;
-
-        @choices = () if $item->{time_to_answer} > $max_tta;
-        $max_tta = $item->{time_to_answer};
-
+        next if $item->{complexity} > $self->{set_complexity};
+        next if $self->{curr_question} and $self->{curr_question}{question} eq $item->{question};
+        
         push @choices, $item;
     }
+    
+    # find items with low certainty that we haven't seen recently
+    @choices = trim_hash_array_by ( "certainty", \@choices );
+    
+    # find items with low certainty that we haven't seen recently
+    @choices = trim_hash_array_by ( "last_seen", \@choices );
+
+    # find items with a high response time
+    @choices = trim_hash_array_by ( "time_to_answer", \@choices, 'reverse' );
 
     # pick random item from choices
     my $pick = int( rand($#choices) );
@@ -378,26 +476,88 @@ sub select_current_question {
     $self->{curr_question} = $choices[$pick];
 }
 
+sub trim_hash_array_by {
+    my ($parameter, $array, $reverse) = @_;
+    
+    my @sort_array;
+    @sort_array = sort { $a->{$parameter} <=> $b->{$parameter} } @{$array};
+    @sort_array = reverse @sort_array if $reverse;
+    
+    my $margin = 0.33 * scalar @sort_array;
+    $margin = 4 if $margin < 4;
+    splice @sort_array, $margin;
+    
+    return @sort_array;
+}
+
 sub update_ui_for_question {
     my ($self) = @_;
-
+    
     $el{question}->SetBackgroundColour(wxNullColour);
-    $el{question}->SetLabel( $self->{curr_question}->{question} );
     $el{set_selector}->Disable;
     $el{start_next_button}->Disable;
     $el{start_next_button}->SetLabel("Next");
-    $el{answer}->SetValue('');
-    $el{answer}->Enable;
-    $el{answer}->SetFocus;
     $el{answer_time}->SetLabel('');
     $el{correct_answer}->Hide;
-    $el{correct_answer}->SetLabel( $self->{curr_question}->{answer} );
+    $el{correct_answer}->SetLabel( $self->{curr_question}{answer} );
     $el{animator}->Show;
+    $self->enable_sizer_contents( $self->{multi_answer_sizer} ) if ( $self->{curr_question}{answer_type} eq 'multi' );
+    
+    given ($self->{curr_question}{answer_type}) {
+        when ( "text"  ) { $self->load_text_answer; }
+        when ( "multi" ) { $self->load_multi_answer; }
+        default          { confess( "unknown answer type: $self->{curr_question}{answer_type}" );  }
+    }
 
+    $el{question}->SetLabel( $self->{curr_question}{question} );
     $self->re_layout;
 
     $self->{curr_question}->{time_start} = time;
     $el{question_timer}->Start(10_000);
+}
+
+sub load_text_answer {
+    my ($self) = @_;
+    
+    $self->hide_sizer_contents( $self->{multi_answer_sizer} );
+    $el{answer}->Show;
+    $el{answer}->SetValue('');
+    $el{answer}->Enable;
+    $el{answer}->SetFocus;
+}
+
+sub load_multi_answer {
+    my ($self) = @_;
+    
+    my (@possible_answers, @answers);
+    
+    for my $answer ( @{ $self->{set} } ) {
+        next if $answer->{answer} eq $self->{curr_question}{answer};
+        next if $answer->{complexity} > $self->{set_complexity};
+        
+        push @possible_answers, $answer->{answer};
+    }
+    
+    push @answers, $self->{curr_question}{answer};
+    while ( @answers < 9 and @possible_answers > 0 ) {
+        my $pick = int( rand( $#possible_answers ) );
+        push @answers, $possible_answers[$pick];
+        splice @possible_answers, $pick, 1;
+    }
+    
+    @answers = shuffle(@answers);
+    
+    my @children = $self->{multi_answer_sizer}->GetChildren;
+    
+    for my $i ( 0..8 ) {
+        my $a = $children[$i]->GetWindow;
+        $a->SetLabel( $answers[$i] || '' );
+    }
+    
+    $self->show_sizer_contents( $self->{multi_answer_sizer} );
+    $el{answer}->Hide;
+    
+    EVT_KEY_DOWN( $self,  \&evt_process_keyboard );
 }
 
 sub update_user_data_db {
@@ -434,6 +594,8 @@ sub load_audiobank {
     }
 }
 
+
+
 # GUI Setup Sub-Routines
 ################################################################################
 
@@ -446,7 +608,6 @@ sub load_gui {
 
     $el{frame} = Wx::Frame->new;
     $xr->LoadFrame( $el{frame}, undef, 'frame' );
-    $el{frame}->Show(1);
 
     $self->{main_sizer} = $el{frame}->GetSizer;
 
@@ -455,8 +616,12 @@ sub load_gui {
     for my $child (@children) {
         $el{ $child->GetName } = $child;
     }
-
+    
+    $self->{bottom_sizer} = $el{start_next_button}->GetContainingSizer;
+    $self->{multi_answer_sizer} = $el{answer_0}->GetContainingSizer;
+    
     $self->re_layout;
+    $el{frame}->Show(1);
 }
 
 sub re_layout {
@@ -531,6 +696,11 @@ sub register_events {
     EVT_TIMER( $self, $el{question_timer_id}, \&check_answer );
     EVT_TIMER( $self, $el{wrong_timer_id},    \&enable_start_next_button );
     EVT_TEXT_ENTER( $self, $el{answer}, \&check_answer );
+    
+    my @multi_answer_buttons = $self->{multi_answer_sizer}->GetChildren;
+    for my $button ( @multi_answer_buttons ) {
+        EVT_BUTTON( $self, $button->GetWindow, \&evt_multi_answer_button );
+    }
 }
 
 sub load_waiting_animator {
@@ -549,14 +719,47 @@ sub load_waiting_animator {
 sub adjust_fonts {
     my ($self) = @_;
 
-    my $font = $el{question}->GetFont;
-    $font->SetPointSize( $font->GetPointSize * 4 );
-    $el{question}->SetFont($font);
+    my $question_font = $el{question}->GetFont;
+    $question_font->SetPointSize( $question_font->GetPointSize * 4 );
+    $el{question}->SetFont($question_font);
     $el{answer}->Disable;
     $el{correct_answer}->Hide;
-    my $font2 = $el{correct_answer}->GetFont;
-    $font2->SetPointSize( $font2->GetPointSize * 2 );
-    $el{correct_answer}->SetFont($font2);
+    
+    my $answer_font = $el{correct_answer}->GetFont;
+    $answer_font->SetPointSize( $answer_font->GetPointSize * 2 );
+    $el{correct_answer}->SetFont($answer_font);
+}
+
+sub show_sizer_contents {
+    my ($self, $sizer) = @_;
+    
+    for my $child ( $sizer->GetChildren ) {
+        $child->GetWindow->Show;
+    }
+}
+
+sub hide_sizer_contents {
+    my ($self, $sizer) = @_;
+    
+    for my $child ( $sizer->GetChildren ) {
+        $child->GetWindow->Hide;
+    }
+}
+
+sub disable_sizer_contents {
+    my ($self, $sizer) = @_;
+    
+    for my $child ( $sizer->GetChildren ) {
+        $child->GetWindow->Disable;
+    }
+}
+
+sub enable_sizer_contents {
+    my ($self, $sizer) = @_;
+    
+    for my $child ( $sizer->GetChildren ) {
+        $child->GetWindow->Enable;
+    }
 }
 
 1;    # End of Quiz::Flashcards

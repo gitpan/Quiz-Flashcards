@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
 <resource xmlns="http://www.wxwindows.org/wxxrc" version="2.3.0.1">
 	<object class="wxFrame" name="frame">
-		<style>wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL</style>
+		<style>wxDEFAULT_FRAME_STYLE|wxCLIP_CHILDREN|wxFULL_REPAINT_ON_RESIZE|wxTAB_TRAVERSAL</style>
 		<bg>#d4d0c8</bg>
 		<title></title>
 		<object class="wxFlexGridSizer">
@@ -10,7 +10,7 @@
 			<vgap>0</vgap>
 			<hgap>0</hgap>
 			<growablecols>0</growablecols>
-			<growablerows>7</growablerows>
+			<growablerows>8</growablerows>
 			<object class="sizeritem">
 				<option>0</option>
 				<flag>wxEXPAND</flag>
@@ -81,6 +81,127 @@
 					<hidden>1</hidden>
 					<value></value>
 					<maxlength>0</maxlength>
+				</object>
+			</object>
+			<object class="sizeritem">
+				<option>1</option>
+				<flag>wxEXPAND</flag>
+				<border>5</border>
+				<object class="wxGridSizer">
+					<rows>0</rows>
+					<cols>3</cols>
+					<vgap>0</vgap>
+					<hgap>0</hgap>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_7">
+							<hidden>1</hidden>
+							<label>7</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_8">
+							<hidden>1</hidden>
+							<label>8</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_9">
+							<hidden>1</hidden>
+							<label>9</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_4">
+							<hidden>1</hidden>
+							<label>4</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_5">
+							<hidden>1</hidden>
+							<label>5</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_6">
+							<hidden>1</hidden>
+							<label>6</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_3">
+							<hidden>1</hidden>
+							<label>3</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_2">
+							<hidden>1</hidden>
+							<label>2</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_1">
+							<hidden>1</hidden>
+							<label>1</label>
+							<default>0</default>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALL</flag>
+						<border>5</border>
+						<object class="wxStaticText" name="spacer">
+							<hidden>1</hidden>
+							<label></label>
+						</object>
+					</object>
+					<object class="sizeritem">
+						<option>0</option>
+						<flag>wxALIGN_CENTER|wxALL|wxEXPAND</flag>
+						<border>5</border>
+						<object class="wxButton" name="answer_0">
+							<bg>#ff9999</bg>
+							<hidden>1</hidden>
+							<label>don&apos;t know</label>
+							<default>0</default>
+						</object>
+					</object>
 				</object>
 			</object>
 			<object class="sizeritem">
